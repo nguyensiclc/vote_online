@@ -25,7 +25,7 @@
             name="candidate"
             :value="c.id"
             v-model="selectedCandidateId"
-            :disabled="hasVoted || submitting"
+            :disabled="submitting"
           />
           <span class="candidate-label">{{ c.name }}</span>
         </label>
@@ -38,16 +38,15 @@
       <div class="actions">
         <button
           class="btn btn-primary"
-          :disabled="!selectedCandidateId || submitting || hasVoted"
+          :disabled="!selectedCandidateId || submitting"
           @click="submitVote"
         >
-          <span v-if="!submitting && !hasVoted">Vote</span>
-          <span v-else-if="submitting">Submitting...</span>
-          <span v-else>Vote submitted</span>
+          <span v-if="!submitting">Vote</span>
+          <span v-else>Submitting...</span>
         </button>
 
-        <p class="helper" v-if="!hasVoted">
-          You can only vote once from this device / network.
+        <p class="helper">
+          You can have only one active vote from this device / network, but you can change your choice at any time.
         </p>
       </div>
 
@@ -72,6 +71,7 @@ const selectedCandidateId = ref(null);
 // UI state flags.
 const loading = ref(false);
 const submitting = ref(false);
+// Đánh dấu IP này đã từng vote (để hiển thị thông điệp), nhưng vẫn cho phép chỉnh sửa.
 const hasVoted = ref(false);
 // Feedback messages.
 const successMessage = ref('');
@@ -101,10 +101,38 @@ async function loadCandidates() {
 }
 
 /**
+ * Load the current vote (nếu có) cho IP hiện tại.
+ * Nếu đã vote, tự động chọn lại candidate tương ứng.
+ */
+async function loadCurrentVote() {
+  try {
+    const res = await fetch('/api/vote/my-vote');
+    if (res.status === 204) {
+      // IP này chưa vote lần nào.
+      hasVoted.value = false;
+      return;
+    }
+    if (!res.ok) {
+      return;
+    }
+    const body = await res.json();
+    if (body && body.candidateId != null) {
+      selectedCandidateId.value = body.candidateId;
+      hasVoted.value = true;
+      successMessage.value =
+        'You have already voted. You can change your choice and press Vote again.';
+    }
+  } catch (err) {
+    console.error('Failed to load current vote', err);
+  }
+}
+
+/**
  * Submit the selected vote to the backend.
+ * Cho phép ghi đè (edit) vote trước đó của cùng IP.
  */
 async function submitVote() {
-  if (!selectedCandidateId.value || submitting.value || hasVoted.value) {
+  if (!selectedCandidateId.value || submitting.value) {
     return;
   }
 
@@ -128,12 +156,6 @@ async function submitVote() {
       successMessage.value =
         body.message || 'Thank you! Your vote has been recorded.';
       hasVoted.value = true;
-    } else if (res.status === 409) {
-      const body = await res.json().catch(() => ({}));
-      errorMessage.value =
-        body.message ||
-        'A vote from this network has already been recorded.';
-      hasVoted.value = true;
     } else {
       const body = await res.json().catch(() => ({}));
       errorMessage.value =
@@ -150,6 +172,7 @@ async function submitVote() {
 
 onMounted(() => {
   loadCandidates();
+  loadCurrentVote();
 });
 </script>
 
