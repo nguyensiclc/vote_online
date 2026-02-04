@@ -1,14 +1,14 @@
 <template>
   <main class="card">
     <header class="card-header">
-      <h1 class="card-title">Vote for Your Favorite Performance</h1>
+      <h1 class="card-title">Bình chọn tiết mục văn nghệ yêu thích</h1>
       <p class="card-subtitle">
-        Please select exactly one performance and submit your vote.
+        Vui lòng chọn một tiết mục và bấm nút bình chọn.
       </p>
     </header>
 
     <section v-if="loading" class="loading">
-      Loading candidates...
+      Đang tải danh sách tiết mục...
     </section>
 
     <section v-else>
@@ -32,21 +32,24 @@
       </div>
 
       <p v-else class="loading">
-        No candidates available.
+        Hiện chưa có tiết mục nào để bình chọn.
       </p>
 
       <div class="actions">
         <button
           class="btn btn-primary"
-          :disabled="!selectedCandidateId || submitting"
+          :disabled="!selectedCandidateId || submitting || cooldownSeconds > 0"
           @click="submitVote"
         >
-          <span v-if="!submitting">Vote</span>
-          <span v-else>Submitting...</span>
+          <span v-if="!submitting">Bình chọn</span>
+          <span v-else>Đang gửi...</span>
         </button>
 
-        <p class="helper">
-          You can have only one active vote from this device / network, but you can change your choice at any time.
+        <p class="helper" v-if="cooldownSeconds <= 0">
+          Mỗi thiết bị / mạng chỉ có một phiếu hợp lệ, nhưng bạn có thể thay đổi lựa chọn sau một khoảng thời gian.
+        </p>
+        <p class="helper" v-else>
+          Bạn vừa bình chọn, vui lòng đợi {{ cooldownSeconds }} giây trước khi đổi lựa chọn.
         </p>
       </div>
 
@@ -73,6 +76,8 @@ const loading = ref(false);
 const submitting = ref(false);
 // Đánh dấu IP này đã từng vote (để hiển thị thông điệp), nhưng vẫn cho phép chỉnh sửa.
 const hasVoted = ref(false);
+// Thời gian chờ (giây) sau mỗi lần bình chọn thành công để chống spam.
+const cooldownSeconds = ref(0);
 // Feedback messages.
 const successMessage = ref('');
 const errorMessage = ref('');
@@ -94,7 +99,7 @@ async function loadCandidates() {
   } catch (err) {
     console.error(err);
     errorMessage.value =
-      'Unable to load candidates. Please refresh the page or try again later.';
+      'Không thể tải danh sách tiết mục. Vui lòng tải lại trang hoặc thử lại sau.';
   } finally {
     loading.value = false;
   }
@@ -120,7 +125,7 @@ async function loadCurrentVote() {
       selectedCandidateId.value = body.candidateId;
       hasVoted.value = true;
       successMessage.value =
-        'You have already voted. You can change your choice and press Vote again.';
+        'Bạn đã từng bình chọn. Bạn có thể đổi lựa chọn và bấm Bình chọn lại.';
     }
   } catch (err) {
     console.error('Failed to load current vote', err);
@@ -154,20 +159,36 @@ async function submitVote() {
     if (res.ok) {
       const body = await res.json().catch(() => ({}));
       successMessage.value =
-        body.message || 'Thank you! Your vote has been recorded.';
+        body.message || 'Cảm ơn bạn! Phiếu bình chọn của bạn đã được ghi nhận.';
       hasVoted.value = true;
+      startCooldown();
     } else {
       const body = await res.json().catch(() => ({}));
       errorMessage.value =
-        body.message || 'Unable to submit your vote. Please try again later.';
+        body.message || 'Không thể gửi bình chọn. Vui lòng thử lại sau.';
     }
   } catch (err) {
     console.error(err);
     errorMessage.value =
-      'A network error occurred while submitting your vote. Please try again.';
+      'Có lỗi mạng khi gửi bình chọn. Vui lòng thử lại.';
   } finally {
     submitting.value = false;
   }
+}
+
+/**
+ * Sau mỗi lần bình chọn thành công, kích hoạt thời gian chờ 10s để tránh spam.
+ */
+function startCooldown() {
+  cooldownSeconds.value = 10;
+  const interval = setInterval(() => {
+    if (cooldownSeconds.value <= 1) {
+      cooldownSeconds.value = 0;
+      clearInterval(interval);
+    } else {
+      cooldownSeconds.value -= 1;
+    }
+  }, 1000);
 }
 
 onMounted(() => {
