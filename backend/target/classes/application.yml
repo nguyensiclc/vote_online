@@ -4,9 +4,9 @@ spring:
 
   datasource:
     # Thay đổi kết nối sang PostgreSQL
-    url: jdbc:postgresql://localhost:5432/vote_db
+    url: jdbc:postgresql://vote-db.ch8mw6w6unir.ap-southeast-1.rds.amazonaws.com:5432/vote_db
     username: postgres
-    password: "1"
+    password: "vote1234"
     driver-class-name: org.postgresql.Driver
 
   jpa:
