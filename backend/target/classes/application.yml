@@ -1,0 +1,27 @@
+spring:
+  application:
+    name: vote-online
+
+  datasource:
+    # Thay đổi kết nối sang PostgreSQL
+    url: jdbc:postgresql://localhost:5432/vote_db
+    username: postgres
+    password: "1"
+    driver-class-name: org.postgresql.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+    properties:
+      hibernate:
+        format_sql: true
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+    open-in-view: false
+
+server:
+  port: 8080
+
+logging:
+  level:
+    org.hibernate.SQL: warn
+
