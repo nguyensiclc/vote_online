@@ -1,7 +1,9 @@
 <template>
   <main class="card">
     <header class="card-header">
-      <h1 class="card-title">Bình chọn tiết mục văn nghệ yêu thích</h1>
+      <div style="display:flex; align-items:center; justify-content:space-between;">
+        <h1 class="card-title">{{ pollTitle || 'Bình chọn tiết mục văn nghệ yêu thích' }}</h1>
+      </div>
       <p class="card-subtitle">
         Vui lòng chọn một tiết mục và bấm nút bình chọn.
       </p>
@@ -66,7 +68,9 @@
 
 <script setup>
 import { onMounted, ref } from 'vue';
+import { apiUrl } from './api.js';
 
+const pollTitle = ref('');
 // List of candidates returned from the backend.
 const candidates = ref([]);
 // Currently selected candidate id.
@@ -81,6 +85,7 @@ const cooldownSeconds = ref(0);
 // Feedback messages.
 const successMessage = ref('');
 const errorMessage = ref('');
+let cooldownInterval = null;
 
 /**
  * Fetch the list of candidates from the backend.
@@ -90,7 +95,19 @@ async function loadCandidates() {
   errorMessage.value = '';
 
   try {
-    const res = await fetch('/api/vote/candidates');
+    const path = (window.location.pathname || '/').split('/');
+    let pollId = null;
+    if (path.length >= 3 && path[1] === 'vote' && path[2]) {
+      try {
+        const decoded = atob(decodeURIComponent(path[2]));
+        const idNum = Number(decoded);
+        if (!Number.isNaN(idNum)) {
+          pollId = idNum;
+        }
+      } catch {}
+    }
+    const url = pollId != null ? `/api/vote/polls/${pollId}/candidates` : '/api/vote/candidates';
+    const res = await fetch(apiUrl(url));
     if (!res.ok) {
       throw new Error('Failed to load candidates');
     }
@@ -111,7 +128,7 @@ async function loadCandidates() {
  */
 async function loadCurrentVote() {
   try {
-    const res = await fetch('/api/vote/my-vote');
+    const res = await fetch(apiUrl('/api/vote/my-vote'));
     if (res.status === 204) {
       // IP này chưa vote lần nào.
       hasVoted.value = false;
@@ -126,6 +143,10 @@ async function loadCurrentVote() {
       hasVoted.value = true;
       successMessage.value =
         'Bạn đã từng bình chọn. Bạn có thể đổi lựa chọn và bấm Bình chọn lại.';
+      const remain = Number(body.cooldownRemainingSeconds ?? 0);
+      if (!Number.isNaN(remain) && remain > 0) {
+        startCooldown(remain);
+      }
     }
   } catch (err) {
     console.error('Failed to load current vote', err);
@@ -146,7 +167,7 @@ async function submitVote() {
   errorMessage.value = '';
 
   try {
-    const res = await fetch('/api/vote', {
+    const res = await fetch(apiUrl('/api/vote'), {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
@@ -161,11 +182,16 @@ async function submitVote() {
       successMessage.value =
         body.message || 'Cảm ơn bạn! Phiếu bình chọn của bạn đã được ghi nhận.';
       hasVoted.value = true;
-      startCooldown();
+      const cooldown = Number(body.cooldownSeconds ?? 10);
+      startCooldown(Number.isNaN(cooldown) ? 10 : cooldown);
     } else {
       const body = await res.json().catch(() => ({}));
       errorMessage.value =
         body.message || 'Không thể gửi bình chọn. Vui lòng thử lại sau.';
+      const remain = Number(body.cooldownRemainingSeconds ?? 0);
+      if (!Number.isNaN(remain) && remain > 0) {
+        startCooldown(remain);
+      }
     }
   } catch (err) {
     console.error(err);
@@ -179,19 +205,68 @@ async function submitVote() {
 /**
  * Sau mỗi lần bình chọn thành công, kích hoạt thời gian chờ 10s để tránh spam.
  */
-function startCooldown() {
-  cooldownSeconds.value = 10;
-  const interval = setInterval(() => {
-    if (cooldownSeconds.value <= 1) {
-      cooldownSeconds.value = 0;
-      clearInterval(interval);
-    } else {
-      cooldownSeconds.value -= 1;
+function startCooldown(seconds) {
+  if (cooldownInterval) {
+    clearInterval(cooldownInterval);
+    cooldownInterval = null;
+  }
+  cooldownSeconds.value = Math.max(Number(seconds) || 0, 0);
+  const until = Date.now() + cooldownSeconds.value * 1000;
+  localStorage.setItem('voteCooldownUntil', String(until));
+  cooldownInterval = setInterval(() => {
+    const remainMs = until - Date.now();
+    const remain = Math.max(Math.ceil(remainMs / 1000), 0);
+    cooldownSeconds.value = remain;
+    if (remain <= 0) {
+      clearInterval(cooldownInterval);
+      cooldownInterval = null;
+      localStorage.removeItem('voteCooldownUntil');
     }
-  }, 1000);
+  }, 250);
 }
 
-onMounted(() => {
+onMounted(async () => {
+  const path = (window.location.pathname || '/').split('/');
+  let pollId = null;
+  if (path.length >= 3 && path[1] === 'vote' && path[2]) {
+    try {
+      const decoded = atob(decodeURIComponent(path[2]));
+      const idNum = Number(decoded);
+      if (!Number.isNaN(idNum)) {
+        pollId = idNum;
+      }
+    } catch {}
+  }
+  try {
+    if (pollId != null) {
+      const res = await fetch(apiUrl(`/api/vote/polls/${pollId}`));
+      if (res.ok) {
+        const data = await res.json();
+        pollTitle.value = data?.title || '';
+      }
+    } else {
+      const res = await fetch(apiUrl('/api/vote/polls'));
+      if (res.ok) {
+        const arr = await res.json();
+        pollTitle.value = (arr && arr.length ? arr[0].title : '') || '';
+      }
+    }
+  } catch {}
+  const untilRaw = localStorage.getItem('voteCooldownUntil');
+  if (untilRaw) {
+    const untilNum = Number(untilRaw);
+    if (!Number.isNaN(untilNum)) {
+      const remainMs = untilNum - Date.now();
+      const remain = Math.max(Math.ceil(remainMs / 1000), 0);
+      if (remain > 0) {
+        startCooldown(remain);
+      } else {
+        localStorage.removeItem('voteCooldownUntil');
+      }
+    } else {
+      localStorage.removeItem('voteCooldownUntil');
+    }
+  }
   loadCandidates();
   loadCurrentVote();
 });

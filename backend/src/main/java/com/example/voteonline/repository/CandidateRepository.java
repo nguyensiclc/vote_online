@@ -7,5 +7,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
  * Repository for Candidate entity.
  */
 public interface CandidateRepository extends JpaRepository<Candidate, Long> {
+    java.util.List<Candidate> findByPollMeta_Id(Long pollId);
+    void deleteByPollMeta_Id(Long pollId);
 }
 

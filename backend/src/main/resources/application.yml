@@ -3,10 +3,9 @@ spring:
     name: vote-online
 
   datasource:
-    # Thay đổi kết nối sang PostgreSQL
-    url: jdbc:postgresql://vote-db.ch8mw6w6unir.ap-southeast-1.rds.amazonaws.com:5432/vote_db
+    url: jdbc:postgresql://localhost:5432/vote_db
     username: postgres
-    password: "vote1234"
+    password: "1"
     driver-class-name: org.postgresql.Driver
 
   jpa:
@@ -20,8 +19,9 @@ spring:
 
 server:
   port: 8080
+  servlet:
+    context-path: /vote-online
 
 logging:
   level:
     org.hibernate.SQL: warn
-

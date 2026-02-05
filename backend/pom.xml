@@ -9,6 +9,7 @@
     <version>0.0.1-SNAPSHOT</version>
     <name>vote-online</name>
     <description>Simple online voting application</description>
+    <!-- Đóng gói jar để chạy với embedded Tomcat -->
     <packaging>jar</packaging>
 
     <parent>
@@ -45,6 +46,7 @@
             <scope>runtime</scope>
         </dependency>
 
+
         <dependency>
             <groupId>org.projectlombok</groupId>
             <artifactId>lombok</artifactId>
@@ -61,6 +63,7 @@
             <artifactId>spring-boot-starter-test</artifactId>
             <scope>test</scope>
         </dependency>
+
     </dependencies>
 
     <build>

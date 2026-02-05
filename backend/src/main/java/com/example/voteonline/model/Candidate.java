@@ -13,13 +13,18 @@ public class Candidate {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(nullable = false, unique = true)
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "poll_meta_id", nullable = false)
+    private PollMeta pollMeta;
+
+    @Column(nullable = false)
     private String name;
 
     public Candidate() {
     }
 
-    public Candidate(String name) {
+    public Candidate(PollMeta pollMeta, String name) {
+        this.pollMeta = pollMeta;
         this.name = name;
     }
 
@@ -29,6 +34,14 @@ public class Candidate {
 
     public void setId(Long id) {
         this.id = id;
+    }
+
+    public PollMeta getPollMeta() {
+        return pollMeta;
+    }
+
+    public void setPollMeta(PollMeta pollMeta) {
+        this.pollMeta = pollMeta;
     }
 
     public String getName() {
